@@ -139,7 +139,7 @@
       status.innerText = '📥 Downloading site, please wait...';
       status.style.color = '#333';
 
-      fetch('/clone', {
+      fetch('api/clone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `url=${encodeURIComponent(url)}`
