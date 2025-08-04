@@ -10,11 +10,11 @@
     {
       "src": "/api/clone",
       "methods": ["POST"],
-      "dest": "api/clone.js"
+      "dest": "/api/clone.js"
     },
     {
       "src": "/(.*)",
-      "dest": "/public/$1"
+      "dest": "/index.html"
     }
   ]
 }
