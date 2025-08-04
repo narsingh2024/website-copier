@@ -12,8 +12,10 @@
   "dependencies": {
     "archiver": "^7.0.1",
     "axios": "^1.11.0",
+    "body-parser": "^2.2.0",
     "express": "^5.1.0",
     "fs-extra": "^11.3.0",
-    "puppeteer": "^24.15.0"
+    "puppeteer": "^24.15.0",
+    "serverless-http": "^3.2.0"
   }
 }
