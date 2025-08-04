@@ -1,7 +1,6 @@
-// api/clone.js
+// localhost and versal to both
 const express = require('express');
 const serverless = require('serverless-http');
-const puppeteer = require('puppeteer');
 const fs = require('fs-extra');
 const path = require('path');
 const archiver = require('archiver');
@@ -18,7 +17,7 @@ app.post('/api/clone', async (req, res) => {
   }
 
   const timestamp = Date.now().toString();
-  const tempDir = path.join('/tmp', 'downloads', timestamp); // Use /tmp on Vercel
+  const tempDir = path.join('/tmp', 'downloads', timestamp); // /tmp is writable on Vercel
   await fs.ensureDir(tempDir);
 
   const imageDir = path.join(tempDir, 'images');
@@ -29,10 +28,29 @@ app.post('/api/clone', async (req, res) => {
   await fs.ensureDir(jsDir);
 
   try {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    // 📦 Puppeteer setup
+    let browser;
+    let puppeteer;
+
+    if (process.env.AWS_REGION || process.env.VERCEL) {
+      // Vercel (serverless)
+      const chromium = require('@sparticuz/chromium');
+      puppeteer = require('puppeteer-core');
+
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
+        defaultViewport: chromium.defaultViewport,
+      });
+    } else {
+      // Local
+      puppeteer = require('puppeteer');
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
 
     const page = await browser.newPage();
     await page.goto(targetUrl, { waitUntil: 'networkidle2' });
@@ -50,11 +68,13 @@ app.post('/api/clone', async (req, res) => {
 
     const downloadAsset = async (url, folder) => {
       try {
-        const filename = path.basename(new URL(url).pathname);
+        const filename = path.basename(new URL(url).pathname || 'file');
         const outputPath = path.join(folder, filename);
         const { data } = await axios.get(url, { responseType: 'arraybuffer' });
         fs.writeFileSync(outputPath, data);
-      } catch {}
+      } catch (err) {
+        console.warn(`⚠️ Skipping asset: ${url}`);
+      }
     };
 
     await Promise.all(assets.imgs.map(img => downloadAsset(img, imageDir)));
@@ -76,10 +96,10 @@ app.post('/api/clone', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Error:', err);
+    console.error('❌ Server Error:', err);
     res.status(500).send('❌ Failed to clone the site.');
   }
 });
 
-module.exports = app; // for local
-module.exports.handler = serverless(app); // for Vercel
+module.exports = app;
+module.exports.handler = serverless(app);

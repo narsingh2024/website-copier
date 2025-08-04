@@ -1,18 +1,20 @@
 // server.js
-const app = require('./api/clone'); // reuse Express app
 const express = require('express');
 const path = require('path');
+const cloneApi = require('./api/clone');
+
+const app = cloneApi; // Reuse the same express app
 
 const PORT = 3000;
 
-// Serve static files from "public"
+// Serve frontend files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve index.html on root
+// Route: serve index.html on root
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Running on http://localhost:${PORT}`);
 });
