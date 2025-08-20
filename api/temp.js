@@ -1,19 +1,20 @@
-// Not in used right now
-// perfect for local but versal cause issue due to crome version
-//folder structure also correct
-// wordpress react single page app clone working
-//issue with AOI 
-const express = require('express');
-const serverless = require('serverless-http');
-const puppeteer = require('puppeteer');
-const fs = require('fs-extra');
-const path = require('path');
-const archiver = require('archiver');
-const bodyParser = require('body-parser');
-const axios = require('axios');
-
-const app = express();
-app.use(bodyParser.urlencoded({ extended: true }));
+// assets path changes in the HTML
+const updateHtmlPaths = (htmlContent, tempDir) => {
+  // Replace paths in the HTML to point to the correct local folder structure
+  return htmlContent
+    .replace(/src="\/assets\/(.*?)"/g, (match, filename) => {
+      return `src="/js/${filename}"`; // Update JS path
+    })
+    .replace(/href="\/assets\/(.*?)"/g, (match, filename) => {
+      return `href="/css/${filename}"`; // Update CSS path
+    })
+    .replace(/href="https:\/\/storage.googleapis.com\/contextalytic\/scalex_ai_logo.png"/g, (match) => {
+      return `href="/images/scalex_ai_logo.png"`; // Update image path
+    })
+    .replace(/src="https:\/\/storage.googleapis.com\/contextalytic\/scalex_ai_logo.png"/g, (match) => {
+      return `src="/images/scalex_ai_logo.png"`; // Update image path
+    });
+};
 
 app.post('/api/clone', async (req, res) => {
   const targetUrl = req.body.url;
@@ -42,7 +43,8 @@ app.post('/api/clone', async (req, res) => {
     await page.goto(targetUrl, { waitUntil: 'networkidle2' });
 
     const html = await page.content();
-     // Update the paths in the HTML file to use local paths
+
+    // Update the paths in the HTML file to use local paths
     const updatedHtml = updateHtmlPaths(html, tempDir);
 
     // Save the updated HTML file
@@ -65,6 +67,7 @@ app.post('/api/clone', async (req, res) => {
       } catch {}
     };
 
+    // Download the assets
     await Promise.all(assets.imgs.map(img => downloadAsset(img, imageDir)));
     await Promise.all(assets.css.map(css => downloadAsset(css, cssDir)));
     await Promise.all(assets.js.map(js => downloadAsset(js, jsDir)));
@@ -88,27 +91,3 @@ app.post('/api/clone', async (req, res) => {
     res.status(500).send('❌ Failed to clone the site.');
   }
 });
-//////////////// Utils ////////////////
-
-const updateHtmlPaths = (htmlContent, tempDir) => {
-  // Replace paths in the HTML to point to the correct local folder structure
-  return htmlContent
-    .replace(/src="\/assets\/(.*?)"/g, (match, filename) => {
-      return `src="/js/${filename}"`; // Update JS path
-    })
-    .replace(/href="\/assets\/(.*?)"/g, (match, filename) => {
-      return `href="/css/${filename}"`; // Update CSS path
-    })
-    .replace(/src="\/assets\/(.*?)"/g, (match, filename) => {
-      return `src="/images/${filename}"`; // Update Image path
-    })
-    .replace(/href="https:\/\/storage.googleapis.com\/contextalytic\/scalex_ai_logo.png"/g, (match) => {
-      return `href="/images/scalex_ai_logo.png"`; // Update logo image path
-    })
-    .replace(/src="https:\/\/storage.googleapis.com\/contextalytic\/scalex_ai_logo.png"/g, (match) => {
-      return `src="/images/scalex_ai_logo.png"`; // Update logo image path
-    });
-};
-
-module.exports = app; // for local
-module.exports.handler = serverless(app); // for Vercel

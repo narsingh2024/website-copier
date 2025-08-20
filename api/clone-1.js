@@ -1,86 +1,86 @@
-// // Not in used right now
-// // perfect for local but versal cause issue due to crome version
-// const express = require('express');
-// const serverless = require('serverless-http');
-// const puppeteer = require('puppeteer');
-// const fs = require('fs-extra');
-// const path = require('path');
-// const archiver = require('archiver');
-// const bodyParser = require('body-parser');
-// const axios = require('axios');
+const fs = require('fs-extra');
+const axios = require('axios');
+const path = require('path');
+const { URL } = require('url');
 
-// const app = express();
-// app.use(bodyParser.urlencoded({ extended: true }));
+// Helper function to download assets
+const downloadAsset = async (assetUrl, baseUrl, targetFolder) => {
+  try {
+    const parsedUrl = new URL(assetUrl, baseUrl); // Resolve relative URL against the base URL
+    const assetPath = parsedUrl.pathname;  // Get the path part of the URL
+    const localPath = path.join(targetFolder, assetPath); // Build the local path
+    const dir = path.dirname(localPath); // Get directory path
 
-// app.post('/api/clone', async (req, res) => {
-//   const targetUrl = req.body.url;
-//   if (!/^https?:\/\//.test(targetUrl)) {
-//     return res.status(400).send('❌ Invalid URL. Must start with http:// or https://');
-//   }
+    // Ensure the directory exists before saving the file
+    await fs.ensureDir(dir);
+    
+    // Download the asset data
+    const { data } = await axios.get(assetUrl, { responseType: 'arraybuffer' });
+    // Save the file locally
+    fs.writeFileSync(localPath, data);
+    
+    return localPath;  // Return the local path of the saved asset
+  } catch (error) {
+    console.error(`Error downloading asset ${assetUrl}:`, error);
+  }
+};
 
-//   const timestamp = Date.now().toString();
-//   const tempDir = path.join('/tmp', 'downloads', timestamp); // Use /tmp on Vercel
-//   await fs.ensureDir(tempDir);
+// Helper function to update asset paths in HTML
+const updateAssetPathsInHTML = (html, localPaths, targetFolder) => {
+  localPaths.forEach((localPath) => {
+    const relativePath = path.relative(path.join(targetFolder, 'assets'), localPath).replace(/\\/g, '/');
+    const assetUrl = '/assets/' + relativePath;  // Generate URL for local assets
+    const regex = new RegExp(`"${localPath.replace(/\\/g, '\\\\')}"`, 'g');
+    html = html.replace(regex, assetUrl);  // Replace old asset path with local path
+  });
+  return html;
+};
 
-//   const imageDir = path.join(tempDir, 'images');
-//   const cssDir = path.join(tempDir, 'css');
-//   const jsDir = path.join(tempDir, 'js');
-//   await fs.ensureDir(imageDir);
-//   await fs.ensureDir(cssDir);
-//   await fs.ensureDir(jsDir);
+// Main function to clone assets and update HTML
+const cloneSiteAssets = async (baseUrl, htmlContent) => {
+  // Extract all asset URLs (CSS, JS, Images) from the HTML content
+  const assetUrls = [];
 
-//   try {
-//     const browser = await puppeteer.launch({
-//       headless: true,
-//       args: ['--no-sandbox', '--disable-setuid-sandbox']
-//     });
+  // Regex to capture JS, CSS, and image URLs
+  const jsUrls = Array.from(htmlContent.matchAll(/<script.*?src="(.*?)"/g)).map((match) => match[1]);
+  const cssUrls = Array.from(htmlContent.matchAll(/<link.*?href="(.*?)"/g)).map((match) => match[1]);
+  const imgUrls = Array.from(htmlContent.matchAll(/<img.*?src="(.*?)"/g)).map((match) => match[1]);
 
-//     const page = await browser.newPage();
-//     await page.goto(targetUrl, { waitUntil: 'networkidle2' });
+  // Combine all asset URLs (CSS, JS, Images)
+  assetUrls.push(...jsUrls, ...cssUrls, ...imgUrls);
 
-//     const html = await page.content();
-//     fs.writeFileSync(path.join(tempDir, 'index.html'), html);
+  // Filter out any external URLs (only process local URLs)
+  const localAssetUrls = assetUrls.filter((assetUrl) => !assetUrl.startsWith('http'));
 
-//     const assets = await page.evaluate(() => {
-//       return {
-//         imgs: Array.from(document.querySelectorAll('img')).map(i => i.src),
-//         css: Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href),
-//         js: Array.from(document.querySelectorAll('script[src]')).map(s => s.src),
-//       };
-//     });
+  // Define the target folder for assets
+  const assetsDir = path.join(__dirname, 'assets'); // Base folder where assets will be saved locally
 
-//     const downloadAsset = async (url, folder) => {
-//       try {
-//         const filename = path.basename(new URL(url).pathname);
-//         const outputPath = path.join(folder, filename);
-//         const { data } = await axios.get(url, { responseType: 'arraybuffer' });
-//         fs.writeFileSync(outputPath, data);
-//       } catch {}
-//     };
+  // Download each asset and save it in the appropriate folder
+  const localPaths = [];
+  for (const assetUrl of localAssetUrls) {
+    const localPath = await downloadAsset(assetUrl, baseUrl, assetsDir); // Use baseUrl to resolve relative paths
+    if (localPath) localPaths.push(localPath);
+  }
 
-//     await Promise.all(assets.imgs.map(img => downloadAsset(img, imageDir)));
-//     await Promise.all(assets.css.map(css => downloadAsset(css, cssDir)));
-//     await Promise.all(assets.js.map(js => downloadAsset(js, jsDir)));
+  // Update the HTML content to reference the new local paths
+  let updatedHtml = htmlContent;
+  updatedHtml = updateAssetPathsInHTML(updatedHtml, localPaths, __dirname);
 
-//     await browser.close();
+  return updatedHtml;
+};
 
-//     const zipPath = path.join('/tmp', `${timestamp}.zip`);
-//     const output = fs.createWriteStream(zipPath);
-//     const archive = archiver('zip', { zlib: { level: 9 } });
+// Example usage (with the URL of the website and the HTML content):
+const cloneSite = async () => {
+  const targetUrl = 'https://example.com'; // The base URL of the site you're cloning
+  const htmlContent = await axios.get(targetUrl).then(res => res.data); // Fetch HTML content of the page
 
-//     archive.pipe(output);
-//     archive.directory(tempDir, false);
-//     await archive.finalize();
+  // Now clone assets and update HTML
+  const updatedHtml = await cloneSiteAssets(targetUrl, htmlContent);
 
-//     output.on('close', () => {
-//       res.download(zipPath, 'cloned-site.zip');
-//     });
+  // Save updated HTML to file
+  fs.writeFileSync(path.join(__dirname, 'cloned_index.html'), updatedHtml);
 
-//   } catch (err) {
-//     console.error('❌ Error:', err);
-//     res.status(500).send('❌ Failed to clone the site.');
-//   }
-// });
+  console.log('Assets cloned and HTML updated successfully!');
+};
 
-// module.exports = app; // for local
-// module.exports.handler = serverless(app); // for Vercel
+cloneSite();

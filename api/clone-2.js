@@ -1,11 +1,8 @@
-// Not in used right now
-// perfect for local but versal cause issue due to crome version
-//folder structure also correct
-// wordpress react single page app clone working
-//issue with AOI 
+// localhost and versal to both only home page
+//Folder structure also correct css, js and images
+
 const express = require('express');
 const serverless = require('serverless-http');
-const puppeteer = require('puppeteer');
 const fs = require('fs-extra');
 const path = require('path');
 const archiver = require('archiver');
@@ -22,7 +19,7 @@ app.post('/api/clone', async (req, res) => {
   }
 
   const timestamp = Date.now().toString();
-  const tempDir = path.join('/tmp', 'downloads', timestamp); // Use /tmp on Vercel
+  const tempDir = path.join('/tmp', 'downloads', timestamp); // /tmp is writable on Vercel
   await fs.ensureDir(tempDir);
 
   const imageDir = path.join(tempDir, 'images');
@@ -33,20 +30,35 @@ app.post('/api/clone', async (req, res) => {
   await fs.ensureDir(jsDir);
 
   try {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    // 📦 Puppeteer setup
+    let browser;
+    let puppeteer;
+
+    if (process.env.AWS_REGION || process.env.VERCEL) {
+      // Vercel (serverless)
+      const chromium = require('@sparticuz/chromium');
+      puppeteer = require('puppeteer-core');
+
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
+        defaultViewport: chromium.defaultViewport,
+      });
+    } else {
+      // Local
+      puppeteer = require('puppeteer');
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
 
     const page = await browser.newPage();
     await page.goto(targetUrl, { waitUntil: 'networkidle2' });
 
     const html = await page.content();
-     // Update the paths in the HTML file to use local paths
-    const updatedHtml = updateHtmlPaths(html, tempDir);
-
-    // Save the updated HTML file
-    fs.writeFileSync(path.join(tempDir, 'index.html'), updatedHtml);
+    fs.writeFileSync(path.join(tempDir, 'index.html'), html);
 
     const assets = await page.evaluate(() => {
       return {
@@ -58,11 +70,13 @@ app.post('/api/clone', async (req, res) => {
 
     const downloadAsset = async (url, folder) => {
       try {
-        const filename = path.basename(new URL(url).pathname);
+        const filename = path.basename(new URL(url).pathname || 'file');
         const outputPath = path.join(folder, filename);
         const { data } = await axios.get(url, { responseType: 'arraybuffer' });
         fs.writeFileSync(outputPath, data);
-      } catch {}
+      } catch (err) {
+        console.warn(`⚠️ Skipping asset: ${url}`);
+      }
     };
 
     await Promise.all(assets.imgs.map(img => downloadAsset(img, imageDir)));
@@ -84,31 +98,10 @@ app.post('/api/clone', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Error:', err);
+    console.error('❌ Server Error:', err);
     res.status(500).send('❌ Failed to clone the site.');
   }
 });
-//////////////// Utils ////////////////
 
-const updateHtmlPaths = (htmlContent, tempDir) => {
-  // Replace paths in the HTML to point to the correct local folder structure
-  return htmlContent
-    .replace(/src="\/assets\/(.*?)"/g, (match, filename) => {
-      return `src="/js/${filename}"`; // Update JS path
-    })
-    .replace(/href="\/assets\/(.*?)"/g, (match, filename) => {
-      return `href="/css/${filename}"`; // Update CSS path
-    })
-    .replace(/src="\/assets\/(.*?)"/g, (match, filename) => {
-      return `src="/images/${filename}"`; // Update Image path
-    })
-    .replace(/href="https:\/\/storage.googleapis.com\/contextalytic\/scalex_ai_logo.png"/g, (match) => {
-      return `href="/images/scalex_ai_logo.png"`; // Update logo image path
-    })
-    .replace(/src="https:\/\/storage.googleapis.com\/contextalytic\/scalex_ai_logo.png"/g, (match) => {
-      return `src="/images/scalex_ai_logo.png"`; // Update logo image path
-    });
-};
-
-module.exports = app; // for local
-module.exports.handler = serverless(app); // for Vercel
+module.exports = app;
+module.exports.handler = serverless(app);
