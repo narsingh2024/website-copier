@@ -1,35 +1,39 @@
-name: Deploy to AWS
+name: Deploy to AWS EC2
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main"]   # agar tumhari branch master hai to yaha master likho
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build project
-        run: npm run build
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AWS_HOST }}
-          username: ubuntu
+          username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
           script: |
-            cd /home/ubuntu/myapp
-            git pull origin main
+            echo "🚀 Starting deployment on EC2..."
+            cd /home/ubuntu/copier
+
+            echo "📥 Fetching latest code..."
+            git fetch --all
+            git reset --hard origin/main
+
+            echo "📦 Installing dependencies..."
             npm install --production
-            pm2 restart server
+
+            echo "🔄 Restarting PM2 process..."
+            pm2 restart server || pm2 start server.js --name server
+
+            echo "✅ Deployment finished. Current commit:"
+            git log -1 --oneline
+
+            echo "📂 Project files:"
+            ls -la
