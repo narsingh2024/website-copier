@@ -1,7 +1,8 @@
 // server.js
+//aap.use not function error clone-1
 const express = require('express');
 const path = require('path');
-const cloneApi = require('./api/clone-1');
+const cloneApi = require('./api/clone-0');
 
 const app = cloneApi; // Reuse the same express app
 
