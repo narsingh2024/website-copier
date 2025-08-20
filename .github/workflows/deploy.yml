@@ -27,7 +27,7 @@ jobs:
             git reset --hard origin/main
 
             echo "📦 Installing dependencies..."
-            npm install --production
+            npm install
 
             echo "🔄 Restarting PM2 process..."
             pm2 restart server || pm2 start server.js --name server
