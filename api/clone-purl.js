@@ -1,4 +1,3 @@
-// Folder structure clone also as given in code 
 const express = require('express');
 const serverless = require('serverless-http');
 const puppeteer = require('puppeteer');
@@ -52,6 +51,41 @@ app.post('/api/clone', async (req, res) => {
     archive.directory(tempDir, false);
     await archive.finalize();
     output.on('close', () => res.download(zipPath, 'cloned-site.zip'));
+    ////////////////
+const ngrok = require('ngrok');
+const serveHandler = require('serve-handler');
+const http = require('http');
+
+const clonedDir = tempDir; // the folder where index.html + assets live
+
+// Start temporary static server on a random port
+const port = 4000 + Math.floor(Math.random() * 1000);
+const server = http.createServer((req, res) => {
+  return serveHandler(req, res, {
+    public: clonedDir
+  });
+});
+
+server.listen(port, async () => {
+  try {
+    // Start ngrok tunnel for that port
+    const publicUrl = await ngrok.connect({
+      addr: port,
+      authtoken: 'YOUR_NGROK_TOKEN', // optional if already authed
+    });
+
+    console.log(`✅ Cloned site is live at: ${publicUrl}`);
+
+    // Return the URL to frontend
+    res.json({ success: true, url: publicUrl });
+  } catch (err) {
+    console.error('ngrok error:', err);
+    res.status(500).send('Error starting public tunnel.');
+  }
+});
+
+
+    /////////////////////
   } catch (err) {
     console.error('Error:', err);
     res.status(500).send('Failed to clone site.');
