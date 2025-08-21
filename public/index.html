@@ -118,8 +118,59 @@
       “Empower your curiosity. Clone, learn, and build.”
     </div>
   </div>
+<script>
+  const form = document.getElementById('cloneForm');
+  const button = document.getElementById('copyBtn');
+  const status = document.getElementById('status');
 
-  <script>
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const url = document.getElementById('url').value.trim();
+    if (!url.startsWith('http')) {
+      status.innerText = '❌ Please enter a valid URL starting with http:// or https://';
+      status.style.color = 'red';
+      return;
+    }
+
+    button.disabled = true;
+    button.innerText = 'Copying...';
+    status.innerText = '📥 Downloading site, please wait...';
+    status.style.color = '#333';
+
+    fetch('api/clone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `url=${encodeURIComponent(url)}`
+    }).then(async (response) => {
+      if (response.ok) {
+        const data = await response.json();
+        if (data.previewUrl) {
+          status.innerText = '✅ Website copied successfully. Opening preview...';
+          status.style.color = '#28a745';
+          window.open(data.previewUrl, '_blank'); // open in new tab
+        } else {
+          status.innerText = '❌ Clone succeeded but preview URL missing.';
+          status.style.color = 'red';
+        }
+        button.innerText = 'Re-copy';
+      } else {
+        status.innerText = '❌ Failed to clone the site.';
+        status.style.color = 'red';
+        button.innerText = 'Try Again';
+      }
+    }).catch(err => {
+      console.error(err);
+      status.innerText = '❌ Network error or site blocked.';
+      status.style.color = 'red';
+      button.innerText = 'Try Again';
+    }).finally(() => {
+      button.disabled = false;
+    });
+  });
+</script>
+
+  <!-- <script>
     const form = document.getElementById('cloneForm');
     const button = document.getElementById('copyBtn');
     const status = document.getElementById('status');
@@ -170,6 +221,6 @@
         button.disabled = false;
       });
     });
-  </script>
+  </script> -->
 </body>
 </html>
